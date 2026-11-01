@@ -158,6 +158,9 @@ class ServerTests(unittest.TestCase):
                     workspace = response.read()
                 with urlopen(base + "/") as response:
                     self.assertIn(b"CHANGE THE WAY", response.read())
+                for path in ["/?run=run_test", "/?clip=synthetic_clip"]:
+                    with urlopen(base + path) as response:
+                        self.assertIn("球员追踪实验台".encode(), response.read())
                 for path in ["/home.css", "/home.js", "/home-assets/Barlow-Regular.ttf", "/home-assets/tracking.webp", "/home-assets/OFL.txt"]:
                     with urlopen(base + path) as response:
                         self.assertEqual(response.status, 200)

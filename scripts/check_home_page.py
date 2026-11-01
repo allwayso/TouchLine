@@ -44,7 +44,12 @@ async def main():
         }""")
         await page.get_by_role('link',name='Open Workspace',exact=True).first.click()
         await page.wait_for_url('**/materials')
-        result = {'desktop':desktop,'mobile':mobile,'reducedMotion':reduced,'brokenImages':images,'cta':page.url,'errors':errors}
+        cta_url = page.url
+        await page.goto(args.base_url.rstrip('/') + '/identity', wait_until='networkidle')
+        await page.locator('#workbench').click()
+        await page.wait_for_url('**/workspace')
+        assert await page.get_by_role('heading', name='球员追踪与位置校验', exact=True).count() == 1, '未打开追踪工作台'
+        result = {'desktop':desktop,'mobile':mobile,'reducedMotion':reduced,'brokenImages':images,'cta':cta_url,'workspace':page.url,'errors':errors}
         (out/'checks.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
         print(json.dumps(result,indent=2))
         await browser.close()

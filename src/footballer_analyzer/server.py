@@ -565,6 +565,8 @@ def handler_for(app):
                     report_path = app.run_dir(run_id) / "reports" / report_id / file_name
                     return self.send_bytes(report_path.read_bytes(), mimetypes.guess_type(file_name)[0] or "application/octet-stream")
                 static_paths = {"/": "home.html", "/home.css": "home.css", "/home.js": "home.js", "/workspace": "index.html", "/app.js": "app.js", "/style.css": "style.css", "/field-review": "field-review.html", "/field-review.js": "field-review.js", "/field-review.css": "field-review.css"}
+                if path == "/" and {"run", "clip"}.intersection(parse_qs(urlsplit(self.path).query)):
+                    static_paths["/"] = "index.html"
                 if path.startswith("/home-assets/"):
                     asset_name = path.removeprefix("/home-assets/")
                     if not re.fullmatch(r"[A-Za-z0-9_-]+\.(?:webp|mp4|ttf|txt|svg|png)", asset_name):
