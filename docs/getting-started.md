@@ -162,3 +162,16 @@ $runDir = 'outputs/run_...'
 | 修改身份后统计没变 | 重算对应类型的报告，并确认查看的是新版本；融合与绑定的作用范围见上文。 |
 
 完整命令可通过 `python -m footballer_analyzer --help` 及各子命令的 `--help` 查看。精度与性能证据见[验证文档](validation.md)。
+
+## 项目迁移后的环境修复
+
+项目目录改名或移动后，虚拟环境中的可编辑安装可能仍指向旧目录。如果启动时提示 `No module named footballer_analyzer`，在当前项目根目录执行：
+
+```powershell
+& .\.venv\Scripts\python.exe -m pip install -e . --no-deps
+& .\.venv\Scripts\python.exe -m footballer_analyzer serve --port 8766
+```
+
+这会重新绑定当前源码目录，不升级已有运行依赖。若是首次安装或依赖不完整，请使用上文完整安装步骤。确认包实际位置可运行 `& .\.venv\Scripts\python.exe -c "import footballer_analyzer; print(footballer_analyzer.__file__)"`。
+
+`docs/bench/*_inspect.json` 中的素材路径以项目根目录为基准，移动项目后无需替换其中的盘符或个人目录。
