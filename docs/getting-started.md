@@ -24,6 +24,12 @@ python -m venv .venv
 
 打开 **[http://127.0.0.1:8766/](http://127.0.0.1:8766/)**。默认使用 8766，避开 AnkiConnect 常用的 8765；端口冲突时可通过 `--port` 更换。服务按 `Ctrl+C` 停止；换用其他输出目录时加 `serve --output-root <目录>`。视频、模型、球员档案与分析产物保存在本机，未纳入 Git。
 
+### 展示首页与分析工作台
+
+`http://127.0.0.1:8766/` 打开展示首页，页面入口通往素材库和各分析页面。原人物追踪实验台保留在 `http://127.0.0.1:8766/workspace`；素材库仍位于 `/materials`。首页使用随安装包提供的静态截图与字体，无需额外下载视频。
+
+可选浏览器检查使用 Playwright 与 Chromium：运行 `python scripts/check_home_page.py --base-url http://127.0.0.1:8766`，结果和截图写入 `outputs/design-reference/home-review/`。`scripts/capture_home_materials.py` 可用 Playwright 与 Pillow 重新生成素材库截图，默认保存到本地 `outputs/design-reference/materials.webp`，不会覆盖已提交资源。
+
 ### 独立素材工作页面
 
 打开 `/materials` 查看素材首帧、内容编号、时长与分析入口。场地标定、人物识别、足球追踪和分析报告分别位于 `/calibration`、`/identity`、`/tracking`、`/report`。从素材行进入时，入口携带 `?clip=<素材文件名去扩展名>`，自动选择该素材最新的已完成运行；没有匹配运行时显示空状态，不使用其他素材的数据。原追踪工作台 `/` 仍可启动人物分析，场内轨迹校对 `/field-review` 保持独立。

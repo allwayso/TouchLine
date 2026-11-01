@@ -564,7 +564,15 @@ def handler_for(app):
                         raise ValueError("报告路径无效")
                     report_path = app.run_dir(run_id) / "reports" / report_id / file_name
                     return self.send_bytes(report_path.read_bytes(), mimetypes.guess_type(file_name)[0] or "application/octet-stream")
-                static_paths = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css", "/field-review": "field-review.html", "/field-review.js": "field-review.js", "/field-review.css": "field-review.css"}
+                static_paths = {"/": "home.html", "/home.css": "home.css", "/home.js": "home.js", "/workspace": "index.html", "/app.js": "app.js", "/style.css": "style.css", "/field-review": "field-review.html", "/field-review.js": "field-review.js", "/field-review.css": "field-review.css"}
+                if path.startswith("/home-assets/"):
+                    asset_name = path.removeprefix("/home-assets/")
+                    if not re.fullmatch(r"[A-Za-z0-9_-]+\.(?:webp|mp4|ttf|txt|svg|png)", asset_name):
+                        return self.send_json({"error": "素材路径无效"}, 404)
+                    asset_path = WEB / "home-assets" / asset_name
+                    if not asset_path.is_file():
+                        return self.send_json({"error": "素材不存在"}, 404)
+                    return self.send_bytes(asset_path.read_bytes(), mimetypes.guess_type(asset_name)[0] or "application/octet-stream")
                 static_paths.update({"/materials": "materials.html", "/materials.css": "materials.css", "/materials.js": "materials.js", "/calibration": "calibration.html", "/calibration.css": "calibration.css", "/calibration.js": "calibration.js"})
                 for page in ("identity", "tracking", "report"):
                     static_paths.update({f"/{page}": f"{page}.html", f"/{page}.css": f"{page}.css", f"/{page}.js": f"{page}.js"})

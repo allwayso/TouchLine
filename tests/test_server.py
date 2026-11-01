@@ -154,8 +154,18 @@ class ServerTests(unittest.TestCase):
             thread.start()
             base = f"http://127.0.0.1:{server.server_port}"
             try:
-                with urlopen(base + "/") as response:
+                with urlopen(base + "/workspace") as response:
                     workspace = response.read()
+                with urlopen(base + "/") as response:
+                    self.assertIn(b"CHANGE THE WAY", response.read())
+                for path in ["/home.css", "/home.js", "/home-assets/Barlow-Regular.ttf", "/home-assets/tracking.webp", "/home-assets/OFL.txt"]:
+                    with urlopen(base + path) as response:
+                        self.assertEqual(response.status, 200)
+                        self.assertTrue(response.read())
+                for path in ["/home-assets/..%2Fserver.py", "/home-assets/missing.webp"]:
+                    with self.assertRaises(HTTPError) as raised:
+                        urlopen(base + path)
+                    self.assertEqual(raised.exception.code, 404)
                 with urlopen(base + "/field-review") as response:
                     field_review = response.read()
                 self.assertIn("球员追踪实验台".encode(), workspace)
