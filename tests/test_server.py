@@ -131,6 +131,61 @@ class ServerTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=2)
 
+    def test_material_status_and_frames_survive_move_and_rename(self):
+        """按内容关联迁移、改名后的素材，保留各步骤状态并读回源帧。"""
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir, manifest = test_reporting.ReportingTests().prepare_run(temporary)
+            old_video = Path(manifest["config"]["video"])
+            clips_root = Path(temporary) / "moved/clips"
+            clips_root.mkdir(parents=True)
+            source = old_video.rename(clips_root / "renamed.avi")
+            write_json(run_dir / "balls/ball_test/manifest.json", {"status": "complete"})
+            write_json(run_dir / "balls/ball_failed/manifest.json", {"status": "failed"})
+            write_json(run_dir / "reports/report_test/manifest.json", {"status": "complete"})
+            write_json(run_dir / "reports/report_failed/manifest.json", {"status": "failed"})
+            for name, overrides in [("run_running", {"status": "running"}), ("run_lines", {"kind": "white_line_review"})]:
+                write_json(Path(temporary) / name / "manifest.json", {**manifest, **overrides, "run_id": name})
+            app = ReviewApp(temporary, clips_root)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler_for(app))
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_port}"
+            try:
+                with urlopen(base + "/api/clips") as response:
+                    clip = json.load(response)[0]
+                self.assertEqual(clip["clip_id"], source.name)
+                for key in ["tracking_runs", "calibrated_runs", "ball_runs", "report_runs"]:
+                    self.assertEqual(clip[key], 1, key)
+                with urlopen(base + f"/api/runs/{run_dir.name}/frames/0") as response:
+                    frame = cv2.imdecode(np.frombuffer(response.read(), dtype=np.uint8), cv2.IMREAD_COLOR)
+                self.assertEqual(frame.shape[:2], (48, 64))
+                self.assertEqual(json.loads((run_dir / "manifest.json").read_text(encoding="utf-8")), manifest)
+                source.write_bytes(b"different content at the same material path")
+                for key in ["tracking_runs", "calibrated_runs", "ball_runs", "report_runs"]:
+                    self.assertEqual(app.clips()[0][key], 0, key)
+                with self.assertRaisesRegex(ValueError, "内容指纹"):
+                    app.run_video(manifest)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_material_status_uses_hash_before_path_and_supports_legacy_runs(self):
+        """同路径替换内容不得继承完成状态，无指纹的旧记录仍可按路径读取。"""
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir, manifest = test_reporting.ReportingTests().prepare_run(temporary)
+            source = Path(manifest["config"]["video"])
+            app = ReviewApp(temporary, source.parent)
+            self.assertEqual(app.clips()[0]["tracking_runs"], 1)
+            source.write_bytes(b"replacement video content")
+            self.assertEqual(app.clips()[0]["tracking_runs"], 0)
+            with self.assertRaisesRegex(ValueError, "内容指纹"):
+                app.run_video(manifest)
+            del manifest["video_sha256"]
+            write_json(run_dir / "manifest.json", manifest)
+            self.assertEqual(app.clips()[0]["tracking_runs"], 1)
+            self.assertEqual(app.run_video(manifest), source)
+
     def test_detection_cache_is_optional_and_refreshes(self):
         """旧运行返回未知检测缓存，缓存补齐后返回原始框且保留置信度。"""
         with tempfile.TemporaryDirectory() as temporary:

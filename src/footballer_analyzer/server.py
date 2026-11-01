@@ -56,6 +56,32 @@ class ReviewApp:
             raise ValueError("找不到该视频素材")
         return path
 
+    def material_id(self, source):
+        """缓存素材内容指纹；文件大小或修改时间变化时重新计算。"""
+        stat = source.stat()
+        fingerprint = (stat.st_size, stat.st_mtime_ns)
+        with self.lock:
+            cached = self.material_id_cache.get(str(source))
+            identifier = cached[1] if cached and cached[0] == fingerprint else file_hash(source)
+            self.material_id_cache[str(source)] = (fingerprint, identifier)
+        return identifier
+
+    def run_video(self, manifest):
+        """用内容指纹找回迁移或改名后的源视频，避免读取同名替换素材。"""
+        original = Path(manifest["config"]["video"])
+        identifier = manifest.get("video_sha256")
+        if original.is_file() and (not identifier or self.material_id(original) == identifier):
+            return original
+        if identifier:
+            for candidate in self.clips_root.glob("*"):
+                try:
+                    source = self.clip_path(candidate.name)
+                except ValueError:
+                    continue
+                if self.material_id(source) == identifier:
+                    return source
+        raise ValueError("找不到与该运行内容指纹一致的源视频")
+
     def clips(self):
         """列出素材与已完成人物、场地运行数量；仅白线运行不视为人物处理完成。"""
         completed = {}
@@ -63,7 +89,8 @@ class ReviewApp:
             manifest = read_json(manifest_path)
             if manifest["status"] != "complete" or manifest.get("kind") == "white_line_review":
                 continue
-            video = str(Path(manifest["config"]["video"]).resolve())
+            # 有指纹时只匹配内容；无指纹的旧记录仍按完整路径关联。
+            video = ("hash", manifest["video_sha256"]) if manifest.get("video_sha256") else ("path", str(Path(manifest["config"]["video"]).resolve()))
             counts = completed.setdefault(video, {"tracking_runs": 0, "calibrated_runs": 0, "ball_runs": 0, "report_runs": 0})
             counts["tracking_runs"] += 1
             if (manifest_path.parent / "calibration.yaml").is_file():
@@ -78,12 +105,9 @@ class ReviewApp:
                 except ValueError:
                     continue
                 stat = source.stat()
-                fingerprint = (stat.st_size, stat.st_mtime_ns)
-                with self.lock:
-                    cached = self.material_id_cache.get(str(source))
-                    material_id = cached[1] if cached and cached[0] == fingerprint else file_hash(source)
-                    self.material_id_cache[str(source)] = (fingerprint, material_id)
-                entries.append({"clip_id": path.name, "material_id": material_id, "size_bytes": stat.st_size, **completed.get(str(source), {"tracking_runs": 0, "calibrated_runs": 0, "ball_runs": 0, "report_runs": 0})})
+                material_id = self.material_id(source)
+                counts = {key: sum(completed.get(match, {}).get(key, 0) for match in [("hash", material_id), ("path", str(source))]) for key in ["tracking_runs", "calibrated_runs", "ball_runs", "report_runs"]}
+                entries.append({"clip_id": path.name, "material_id": material_id, "size_bytes": stat.st_size, **counts})
         return entries
 
     def start_analysis(self, payload):
@@ -547,7 +571,7 @@ def handler_for(app):
                             manifest = read_json(run_dir / "manifest.json")
                             if not manifest["start_frame"] <= frame_index < manifest["end_frame"]:
                                 raise ValueError("帧号超出分析区间")
-                            frame = read_frame(Path(manifest["config"]["video"]), frame_index)
+                            frame = read_frame(app.run_video(manifest), frame_index)
                             success, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                             if not success:
                                 raise ValueError("帧编码失败")
