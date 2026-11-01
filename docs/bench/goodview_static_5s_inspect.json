@@ -1,5 +1,5 @@
 {
-  "video": "D:\\FootballerAnalyzer\\data\\clips\\goodview_static_5s.mp4",
+  "video": "./data/clips/goodview_static_5s.mp4",
   "camera": {
     "resolution": "1920x1080",
     "fps": 25.0,
